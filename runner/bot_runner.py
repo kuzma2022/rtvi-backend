@@ -82,6 +82,7 @@ async def index(request: Request) -> JSONResponse:
 
         if "config" not in data:
             raise Exception("Missing RTVI configuration object for bot")
+        print(data)
 
     except Exception as e:
         raise HTTPException(
@@ -101,6 +102,7 @@ async def index(request: Request) -> JSONResponse:
     if debug_room:
         # Check debug room URL exists, and grab it's properties
         try:
+            print(debug_room)
             room: DailyRoomObject = daily_rest_helper.get_room_from_url(debug_room)
         except Exception:
             raise HTTPException(
@@ -128,7 +130,7 @@ async def index(request: Request) -> JSONResponse:
     try:
         bot_file_path = Path("../bot").resolve()
         subprocess.Popen(
-            [f"python3 -m bot -u {room.url} -t {token} -c {escape_bash_arg(bot_config.model_dump_json())}"],
+            [f"python -m bot -u {room.url} -t {token} -c {escape_bash_arg(bot_config.model_dump_json())}"],
             shell=True,
             bufsize=1,
             cwd=bot_file_path)

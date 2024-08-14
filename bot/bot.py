@@ -12,6 +12,8 @@ from pipecat.processors.frameworks.rtvi import (
     RTVIProcessor,
     RTVISetup)
 from pipecat.frames.frames import EndFrame
+from pipecat.services.azure import AzureSTTService
+from pipecat.services.doubao import BytedanceTTSService
 from pipecat.transports.services.daily import DailyParams, DailyTransport
 from pipecat.vad.silero import SileroVADAnalyzer
 
@@ -31,16 +33,23 @@ async def main(room_url, token, bot_config):
         "Realtime AI",
         DailyParams(
             audio_out_enabled=True,
-            transcription_enabled=True,
+            transcription_enabled=False,
             vad_enabled=True,
-            vad_analyzer=SileroVADAnalyzer()
+            vad_audio_passthrough=True,
+            vad_analyzer=SileroVADAnalyzer(),
+            audio_out_sample_rate=24000,
         ))
+
 
     rtai = RTVIProcessor(
         transport=transport,
         setup=RTVISetup(config=RTVIConfig(**bot_config)),
         llm_api_key=os.getenv("OPENAI_API_KEY", ""),
-        tts_api_key=os.getenv("CARTESIA_API_KEY", ""))
+        llm_base_url=os.getenv("OPENAI_BASE_URL", ""),
+        tts_cls=BytedanceTTSService, #TODO config
+        tts_api_key=os.getenv("BYTEDANCE_SPEECH_API_KEY", ""),
+        tts_app_id =os.getenv("BYTEDANCE_SPEECH_APPID", "")
+    )
 
     runner = PipelineRunner()
 
