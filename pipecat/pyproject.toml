@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pipecat-ai"
+dynamic = ["version"]
+description = "An open source framework for voice (and multimodal) assistants"
+license = { text = "BSD 2-Clause License" }
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["webrtc", "audio", "video", "ai"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Topic :: Communications :: Conferencing",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence"
+]
+dependencies = [
+    "aiohttp~=3.9.5",
+    "numpy~=1.26.4",
+    "loguru~=0.7.0",
+    "Pillow~=10.3.0",
+    "protobuf~=4.25.3",
+    "pyloudnorm~=0.1.1",
+    "typing-extensions~=4.12.1",
+]
+
+[project.urls]
+Source = "https://github.com/pipecat-ai/pipecat"
+Website = "https://pipecat.ai"
+
+[project.optional-dependencies]
+anthropic = [ "anthropic~=0.28.1" ]
+azure = [ "azure-cognitiveservices-speech~=1.38.0" ]
+cartesia = [ "websockets~=12.0" ]
+daily = [ "daily-python~=0.10.1" ]
+deepgram = [ "deepgram-sdk~=3.2.7" ]
+examples = [ "python-dotenv~=1.0.0", "flask~=3.0.3", "flask_cors~=4.0.1" ]
+fal = [ "fal-client~=0.4.1" ]
+gladia = [ "websockets~=12.0" ]
+google = [ "google-generativeai~=0.7.1" ]
+fireworks = [ "openai~=1.27.0" ]
+langchain = [ "langchain~=0.2.6", "langchain-community~=0.2.6", "langchain-openai~=0.1.10" ]
+local = [ "pyaudio~=0.2.0" ]
+moondream = [ "einops~=0.8.0", "timm~=0.9.16", "transformers~=4.40.2" ]
+openai = [ "openai~=1.27.0" ]
+openpipe = [ "openpipe~=4.16.0" ]
+playht = [ "pyht~=0.0.28" ]
+silero = [ "torch~=2.3.1", "torchaudio~=2.3.1" ]
+websocket = [ "websockets~=12.0", "fastapi~=0.111.0" ]
+whisper = [ "faster-whisper~=1.0.3" ]
+xtts = [ "resampy~=0.4.3" ]
+
+[tool.setuptools.packages.find]
+# All the following settings are optional:
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.setuptools_scm]
+local_scheme = "no-local-version"
