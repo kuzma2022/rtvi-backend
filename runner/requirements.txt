@@ -1,5 +1,0 @@
-pipecat-ai==0.0.39
-fastapi
-uvicorn
-requests
-python-dotenv

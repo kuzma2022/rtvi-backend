@@ -1,4 +1,0 @@
-python-dotenv
-requests
-fastapi[all]
-pipecat-ai[daily,openai,azure]
