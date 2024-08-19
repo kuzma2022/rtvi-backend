@@ -9,10 +9,10 @@ import dataclasses
 import os
 
 from typing import List, Literal, Optional, Type
-from pipecat.services.azure import AzureSTTService
+from pipecat.services.azure import AzureSTTService, AzureTTSService
 from pipecat.services.whisper import WhisperSTTService
 from pydantic import BaseModel, ValidationError
-
+from pipecat.processors.aggregators.sentence import SentenceAggregator
 from pipecat.frames.frames import (
     BotInterruptionFrame,
     Frame,
@@ -41,7 +41,6 @@ from pipecat.services.cartesia import CartesiaTTSService
 from pipecat.services.doubao import BytedanceTTSService
 from pipecat.services.openai import OpenAILLMService, OpenAILLMContext
 from pipecat.transports.base_transport import BaseTransport
-
 DEFAULT_MESSAGES = [
     {
         "role": "system",
@@ -283,7 +282,6 @@ class RTVIProcessor(FrameProcessor):
             llm_cls: Type[AIService] = OpenAILLMService,
             tts_cls: Type[TTSService] = CartesiaTTSService):
         super().__init__()
-        print("11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111")
         self._transport = transport
         self._setup = setup
         self._llm_api_key = llm_api_key
@@ -296,6 +294,13 @@ class RTVIProcessor(FrameProcessor):
         self._llm: FrameProcessor | None = None
         self._tts: FrameProcessor | None = None
         self._pipeline: FrameProcessor | None = None
+        self._first_participant_joined: bool = False
+
+        # Register transport event so we can send a `bot-ready` event (and maybe
+        # others) when the participant joins.
+        transport.add_event_handler(
+            "on_first_participant_joined",
+            self._on_first_participant_joined)
 
         self._frame_handler_task = self.get_event_loop().create_task(self._frame_handler())
         self._frame_queue = asyncio.Queue()
@@ -438,16 +443,21 @@ class RTVIProcessor(FrameProcessor):
             api_key=self._llm_api_key,
             model=model)
 
-        self._tts = self._tts_cls(name="TTS", api_key=self._tts_api_key, voice_id=voice, appid=self._tts_app_id)
-        await self._tts.set_voice(voice)
+        #self._tts = self._tts_cls(name="TTS", api_key=self._tts_api_key, voice_id=voice, appid=self._tts_app_id)
+        #await self._tts.set_voice(voice)
+        self._tts = AzureTTSService(
+            api_key=os.getenv("AZURE_SPEECH_API_KEY"),
+            region=os.getenv("AZURE_SPEECH_REGION"),
+            voice="zh-CN-XiaochenNeural"
+        )
+
 
         # TODO-CB: Eventually we'll need to switch the context aggregators to use the
         # OpenAI context frames instead of message frames
         context = OpenAILLMContext(messages=messages)
         self._fc = FunctionCaller(context)
-
+#        self._sa = SentenceAggregator()
         self._tts_text = RTVITTSTextProcessor()
-
         #stt = WhisperSTTService()
         stt = AzureSTTService(
             api_key=os.getenv("AZURE_SPEECH_API_KEY"),
@@ -459,7 +469,7 @@ class RTVIProcessor(FrameProcessor):
             stt, 
             self._tma_in,
             self._llm,
-            self._fc,
+#            self._sa,
             self._tts,
             self._tts_text,
             self._tma_out,
@@ -483,9 +493,8 @@ class RTVIProcessor(FrameProcessor):
             processing = [{"processor": p.name, "value": 0.0} for p in processors]
             await self.push_frame(MetricsFrame(ttfb=ttfb, processing=processing))
 
-        message = RTVIBotReady()
-        frame = TransportMessageFrame(message=message.model_dump(exclude_none=True))
-        await self.push_frame(frame)
+
+        await self._maybe_send_bot_ready()
 
     async def _handle_config_update(self, config: RTVIConfig):
         # Change voice before LLM updates, so we can hear the new vocie.
@@ -524,6 +533,16 @@ class RTVIProcessor(FrameProcessor):
 
     async def _handle_tts_interrupt(self):
         await self.push_frame(BotInterruptionFrame(), FrameDirection.UPSTREAM)
+
+    async def _on_first_participant_joined(self, transport, participant):
+        self._first_participant_joined = True
+        await self._maybe_send_bot_ready()
+
+    async def _maybe_send_bot_ready(self):
+        if self._pipeline and self._first_participant_joined:
+            message = RTVIBotReady()
+            frame = TransportMessageFrame(message=message.model_dump(exclude_none=True))
+            await self.push_frame(frame)
 
     async def _send_error(self, error: str):
         message = RTVIError(data=RTVIErrorData(message=error))

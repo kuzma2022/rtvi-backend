@@ -40,7 +40,10 @@ class SentenceAggregator(FrameProcessor):
             return
 
         if isinstance(frame, TextFrame):
-            m = re.search("(.*[?.!])(.*)", frame.text)
+            #m = re.search("(.*[?.!])(.*)", frame.text)
+            #m = re.search(r"(.*[。.？?！!])(.*)", frame.text)
+            pattern = re.compile(r"(.*[?.!。？！])(.*)")
+            m = re.search(pattern, frame.text)
             if m:
                 await self.push_frame(TextFrame(self._aggregation + m.group(1)))
                 self._aggregation = m.group(2)
