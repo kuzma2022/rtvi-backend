@@ -35,6 +35,16 @@ except ModuleNotFoundError as e:
 
 class BytedanceTTSService(TTSService):
 
+    """This service uses the  Bytedance TTS API to generate audio from text.
+    The returned audio is PCM encoded at 24kHz. When using the DailyTransport, set the sample rate in the DailyParams accordingly:
+    ```
+    DailyParams(
+        audio_out_enabled=True,
+        audio_out_sample_rate=24000,
+    )
+    ```
+    """
+
     def __init__(
             self,
             *,
@@ -54,7 +64,6 @@ class BytedanceTTSService(TTSService):
         self._api_url = api_url
         self._encoding = encoding
 
-        print("1111111111112")
 
         self._websocket = None
     
@@ -97,7 +106,6 @@ class BytedanceTTSService(TTSService):
     async def run_tts(self, text: str) -> AsyncGenerator[Frame, None]:
         try:
             logger.debug(f"doubao run_tts text: {text}")
-            print("1111111111112")
             if not self._websocket:
                 await self._connect()
 

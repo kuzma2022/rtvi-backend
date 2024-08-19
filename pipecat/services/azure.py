@@ -19,6 +19,7 @@ from pipecat.frames.frames import (
     ErrorFrame,
     Frame,
     StartFrame,
+    StopInterruptionFrame,
     SystemFrame,
     TranscriptionFrame,
     URLImageRawFrame)
@@ -37,6 +38,7 @@ try:
         SpeechSynthesizer,
         ResultReason,
         CancellationReason,
+        languageconfig,
     )
     from azure.cognitiveservices.speech.audio import AudioStreamFormat, PushAudioInputStream
     from azure.cognitiveservices.speech.dialog import AudioConfig
@@ -130,16 +132,27 @@ class AzureSTTService(AsyncAIService):
 
         stream_format = AudioStreamFormat(samples_per_second=sample_rate, channels=channels)
         self._audio_stream = PushAudioInputStream(stream_format)
-
         audio_config = AudioConfig(stream=self._audio_stream)
+
+        # # Create the auto detection language configuration with the potential source language candidates
+        # auto_detect_source_language_config = \
+        # languageconfig.AutoDetectSourceLanguageConfig(languages=["zh-CN", "en-US"])
+        # self._speech_recognizer = SpeechRecognizer(
+        #     speech_config=speech_config, audio_config=audio_config, auto_detect_source_language_config=auto_detect_source_language_config)
+
         self._speech_recognizer = SpeechRecognizer(
-            speech_config=speech_config, audio_config=audio_config)
+             speech_config=speech_config, audio_config=audio_config)
         self._speech_recognizer.recognized.connect(self._on_handle_recognized)
+
+    def can_generate_metrics(self) -> bool:
+        return True
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
 
         if isinstance(frame, SystemFrame):
+            if isinstance(frame, StopInterruptionFrame):
+                await self.start_ttfb_metrics()
             await self.push_frame(frame, direction)
         elif isinstance(frame, AudioRawFrame):
             self._audio_stream.write(frame.audio)
@@ -158,8 +171,10 @@ class AzureSTTService(AsyncAIService):
         self._audio_stream.close()
 
     def _on_handle_recognized(self, event):
+        asyncio.run_coroutine_threadsafe(self.stop_ttfb_metrics(), self.get_event_loop())
         if event.result.reason == ResultReason.RecognizedSpeech and len(event.result.text) > 0:
             frame = TranscriptionFrame(event.result.text, "", int(time.time_ns() / 1000000))
+            logger.debug(f"Asure RecognizedSpeech: {event.result.text}")
             asyncio.run_coroutine_threadsafe(self.queue_frame(frame), self.get_event_loop())
 
 
