@@ -27,7 +27,6 @@ logger.add(sys.stderr, level="DEBUG")
 
 
 async def main(room_url, token, bot_config):
-
     daily_paras = DailyParams(
             audio_out_enabled=True,
             transcription_enabled=False,
@@ -52,15 +51,15 @@ async def main(room_url, token, bot_config):
         "Realtime AI",
         daily_paras)
 
-
+    llm_base_url= os.getenv("OPENAI_BASE_URL", "")
+    if "llama" in bot_config["llm"]["model"]:
+        llm_base_url=os.getenv("LLAMA_BASE_URL", "")
+       
     rtai = RTVIProcessor(
         transport=transport,
         setup=RTVISetup(config=RTVIConfig(**bot_config)),
         llm_api_key=os.getenv("OPENAI_API_KEY", ""),
-        llm_base_url=os.getenv("OPENAI_BASE_URL", ""),
-        tts_cls=BytedanceTTSService, #TODO config
-        tts_api_key=os.getenv("BYTEDANCE_SPEECH_API_KEY", ""),
-        tts_app_id =os.getenv("BYTEDANCE_SPEECH_APPID", "")
+        llm_base_url= llm_base_url,  
     )
 
     runner = PipelineRunner()

@@ -129,6 +129,7 @@ async def index(request: Request) -> JSONResponse:
     # Launch a new VM as shell process (not recommended for production use)
     try:
         bot_file_path = Path("./").resolve()
+        print(f"python -m bot -u {room.url} -t {token} -c {escape_bash_arg(bot_config.model_dump_json())}")
         subprocess.Popen(
             [f"python -m bot -u {room.url} -t {token} -c {escape_bash_arg(bot_config.model_dump_json())}"],
             shell=True,
