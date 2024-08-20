@@ -27,18 +27,30 @@ logger.add(sys.stderr, level="DEBUG")
 
 
 async def main(room_url, token, bot_config):
-    transport = DailyTransport(
-        room_url,
-        token,
-        "Realtime AI",
-        DailyParams(
+
+    daily_paras = DailyParams(
             audio_out_enabled=True,
             transcription_enabled=False,
             vad_enabled=True,
             vad_audio_passthrough=True,
             vad_analyzer=SileroVADAnalyzer(),
-            audio_out_sample_rate=24000,
-        ))
+        )
+
+    if bot_config["tts"]["model"] == "doubao" or bot_config["tts"]["model"] == "openai":
+         daily_paras = DailyParams(
+            audio_out_enabled=True,
+            transcription_enabled=False,
+            vad_enabled=True,
+            vad_audio_passthrough=True,
+            vad_analyzer=SileroVADAnalyzer(),
+            audio_out_sample_rate=24_000,
+        )
+        
+    transport = DailyTransport(
+        room_url,
+        token,
+        "Realtime AI",
+        daily_paras)
 
 
     rtai = RTVIProcessor(

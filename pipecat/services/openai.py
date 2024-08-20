@@ -304,6 +304,7 @@ class OpenAITTSService(TTSService):
             self,
             *,
             api_key: str | None = None,
+            base_url: str | None = None,
             voice: Literal["alloy", "echo", "fable", "onyx", "nova", "shimmer"] = "alloy",
             model: Literal["tts-1", "tts-1-hd"] = "tts-1",
             **kwargs):
@@ -312,7 +313,7 @@ class OpenAITTSService(TTSService):
         self._voice = voice
         self._model = model
 
-        self._client = AsyncOpenAI(api_key=api_key)
+        self._client = AsyncOpenAI(api_key=api_key,base_url=base_url)
 
     def can_generate_metrics(self) -> bool:
         return True

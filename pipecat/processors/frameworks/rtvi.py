@@ -7,10 +7,13 @@
 import asyncio
 import dataclasses
 import os
+from pyexpat import model
 
 from typing import List, Literal, Optional, Type
+from pipecat.pipeline.pipeline import Pipeline
 from pipecat.services.azure import AzureSTTService, AzureTTSService
 from pipecat.services.whisper import WhisperSTTService
+from pipecat.transports.services.daily import DailyTransport
 from pydantic import BaseModel, ValidationError
 from pipecat.processors.aggregators.sentence import SentenceAggregator
 from pipecat.frames.frames import (
@@ -32,15 +35,16 @@ from pipecat.frames.frames import (
     TransportMessageFrame,
     UserStartedSpeakingFrame,
     UserStoppedSpeakingFrame)
-from pipecat.pipeline.pipeline import Pipeline
+from pipecat.pipeline.parallel_pipeline import ParallelPipeline
 from pipecat.processors.aggregators.llm_response import (
     LLMAssistantResponseAggregator, LLMUserResponseAggregator)
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.services.ai_services import AIService, TTSService
 from pipecat.services.cartesia import CartesiaTTSService
 from pipecat.services.doubao import BytedanceTTSService
-from pipecat.services.openai import OpenAILLMService, OpenAILLMContext
+from pipecat.services.openai import OpenAILLMService, OpenAILLMContext, OpenAITTSService
 from pipecat.transports.base_transport import BaseTransport
+from pipecat.processors.filters.function_filter import FunctionFilter
 DEFAULT_MESSAGES = [
     {
         "role": "system",
@@ -60,6 +64,7 @@ class RTVILLMConfig(BaseModel):
 
 class RTVITTSConfig(BaseModel):
     voice: Optional[str] = None
+    model: Optional[str] = None
 
 
 class RTVIConfig(BaseModel):
@@ -430,9 +435,12 @@ class RTVIProcessor(FrameProcessor):
         if setup and setup.config and setup.config.llm and setup.config.llm.messages:
             messages = setup.config.llm.messages
 
-        voice = DEFAULT_VOICE
+        self.voice = DEFAULT_VOICE
         if setup and setup.config and setup.config.tts and setup.config.tts.voice:
-            voice = setup.config.tts.voice
+            self._tts_voice = setup.config.tts.voice
+
+        if setup and setup.config and setup.config.tts and setup.config.tts.model:
+            self._tts_model = setup.config.tts.model
 
         self._tma_in = LLMUserResponseAggregator(messages)
         self._tma_out = LLMAssistantResponseAggregator(messages)
@@ -443,20 +451,34 @@ class RTVIProcessor(FrameProcessor):
             api_key=self._llm_api_key,
             model=model)
 
-        #self._tts = self._tts_cls(name="TTS", api_key=self._tts_api_key, voice_id=voice, appid=self._tts_app_id)
-        #await self._tts.set_voice(voice)
-        self._tts = AzureTTSService(
-            api_key=os.getenv("AZURE_SPEECH_API_KEY"),
-            region=os.getenv("AZURE_SPEECH_REGION"),
-            voice="zh-CN-XiaochenNeural"
-        )
+        # self._tts = self._tts_cls(name="TTS", api_key=self._tts_api_key, voice_id=voice, appid=self._tts_app_id)
+        # await self._tts.set_voice(voice)
+        if self._tts_model == "azure":
+            self._tts= AzureTTSService(
+                api_key = os.getenv("AZURE_SPEECH_API_KEY"),
+                region = os.getenv("AZURE_SPEECH_REGION"),
+                voice = self._tts_voice
+            )
 
+        if self._tts_model == "doubao":
+            self._tts= BytedanceTTSService(
+                api_key = os.getenv("BYTEDANCE_SPEECH_API_KEY", ""),
+                appid = os.getenv("BYTEDANCE_SPEECH_APPID", ""),
+                voice_id= self._tts_voice
+            )
+
+        if self._tts_model == "openai":
+            self._tts= OpenAITTSService(
+                api_key = self._llm_api_key ,
+                base_url = self._llm_base_url,
+                voice= self._tts_voice
+            )
 
         # TODO-CB: Eventually we'll need to switch the context aggregators to use the
         # OpenAI context frames instead of message frames
         context = OpenAILLMContext(messages=messages)
         self._fc = FunctionCaller(context)
-#        self._sa = SentenceAggregator()
+#       self._sa = SentenceAggregator()
         self._tts_text = RTVITTSTextProcessor()
         #stt = WhisperSTTService()
         stt = AzureSTTService(
@@ -474,7 +496,7 @@ class RTVIProcessor(FrameProcessor):
             self._tts_text,
             self._tma_out,
             self._transport.output(),
-        ])
+        ])  # type: ignore
         self._pipeline = pipeline
 
         parent = self.get_parent()
