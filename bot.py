@@ -83,12 +83,16 @@ async def main(room_url, token, bot_config):
     async def on_participant_left(transport, participant, reason):
         await task.queue_frame(EndFrame())
         logger.info("Partcipant left. Exiting.")
+        sys.exit(0)
+
 
     @transport.event_handler("on_call_state_updated")
     async def on_call_state_updated(transport, state):
         logger.info("Call state %s " % state)
         if state == "left":
             await task.queue_frame(EndFrame())
+            logger.info("Partcipant left. Exiting.")
+            sys.exit(0)
 
     await runner.run(task)
 

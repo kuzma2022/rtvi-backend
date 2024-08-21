@@ -2,19 +2,19 @@ import os
 import argparse
 import subprocess
 from pathlib import Path
+import signal
+import sys
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from pipecat.transports.services.helpers.daily_rest import DailyRESTHelper, \
-    DailyRoomObject, DailyRoomProperties, DailyRoomParams
+from pipecat.transports.services.helpers.daily_rest import DailyRESTHelper, DailyRoomObject, DailyRoomProperties, DailyRoomParams
 from pipecat.processors.frameworks.rtvi import RTVIConfig
 
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
-
 
 # ------------ Fast API Config ------------ #
 
@@ -33,12 +33,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ------------ Helper methods ------------ #
+# List to keep track of subprocesses
+subprocesses = []
 
+# ------------ Helper methods ------------ #
 
 def escape_bash_arg(s):
     return "'" + s.replace("'", "'\\''") + "'"
-
 
 def check_host_whitelist(request: Request):
     host_whitelist = os.getenv("HOST_WHITELIST", "")
@@ -60,17 +61,42 @@ def check_host_whitelist(request: Request):
 
     return False
 
+def terminate_subprocesses():
+    for process in subprocesses:
+        try:
+            process.terminate()
+        except Exception as e:
+            print(f"Failed to terminate subprocess: {e}")
+
+def shutdown_handler(sig, frame):
+    print(f"Received signal {sig}. Shutting down...")
+    terminate_subprocesses()
+    sys.exit(0)
+    
+def sigchld_handler(signum, frame):
+    while True:
+        try:
+            pid, status = os.waitpid(-1, os.WNOHANG)
+            if pid == 0:
+                break
+        except ChildProcessError:
+            break
+
+# 设置信号处理程序
+# Register signal handlers for SIGTERM and SIGINT
+signal.signal(signal.SIGTERM, shutdown_handler)
+signal.signal(signal.SIGINT, shutdown_handler)
+signal.signal(signal.SIGCHLD, sigchld_handler)
 
 # ------------ Fast API Routes ------------ #
 
 @app.middleware("http")
 async def allowed_hosts_middleware(request: Request, call_next):
-    # Middle that optionally checks for hosts in a whitelist
+    # Middleware that optionally checks for hosts in a whitelist
     if not check_host_whitelist(request):
         raise HTTPException(status_code=403, detail="Host access denied")
     response = await call_next(request)
     return response
-
 
 @app.post("/")
 async def index(request: Request) -> JSONResponse:
@@ -100,7 +126,7 @@ async def index(request: Request) -> JSONResponse:
     # Check if we should use an existing room, or create a new one
     debug_room = os.getenv("USE_DEBUG_ROOM", None)
     if debug_room:
-        # Check debug room URL exists, and grab it's properties
+        # Check debug room URL exists, and grab its properties
         try:
             print(debug_room)
             room: DailyRoomObject = daily_rest_helper.get_room_from_url(debug_room)
@@ -130,11 +156,12 @@ async def index(request: Request) -> JSONResponse:
     try:
         bot_file_path = Path("./").resolve()
         print(f"python -m bot -u {room.url} -t {token} -c {escape_bash_arg(bot_config.model_dump_json())}")
-        subprocess.Popen(
+        process = subprocess.Popen(
             [f"python -m bot -u {room.url} -t {token} -c {escape_bash_arg(bot_config.model_dump_json())}"],
             shell=True,
             bufsize=1,
             cwd=bot_file_path)
+        subprocesses.append(process)
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to start subprocess: {e}")
@@ -148,7 +175,6 @@ async def index(request: Request) -> JSONResponse:
         "token": user_token,
         "bot_config": bot_config.model_dump_json()
     })
-
 
 # ------------ Main ------------ #
 
