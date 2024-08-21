@@ -51,9 +51,11 @@ async def main(room_url, token, bot_config):
         "Realtime AI",
         daily_paras)
 
-    llm_base_url= os.getenv("OPENAI_BASE_URL", "")
-    if "llama" in bot_config["llm"]["model"]:
-        llm_base_url=os.getenv("LLAMA_BASE_URL", "")
+    llm_base_url = (
+        os.getenv("LLAMA_BASE_URL", "")
+        if any(model in bot_config["llm"]["model"] for model in ["llama3", "llama3.1:8b","qwen2"])
+        else os.getenv("OPENAI_BASE_URL", "")
+    )
        
     rtai = RTVIProcessor(
         transport=transport,
